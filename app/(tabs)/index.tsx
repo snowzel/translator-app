@@ -1,74 +1,144 @@
-import { Image, StyleSheet, Platform } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, View, Text, Button, ActivityIndicator, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSpeechRecognition } from '../services/speechRecognitionService';
+import { translateText } from '../services/translationService';
 
 export default function HomeScreen() {
+  const [translatedText, setTranslatedText] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const { 
+    isListening, 
+    recognizedText, 
+    error, 
+    hasPermission, 
+    startListening, 
+    stopListening 
+  } = useSpeechRecognition();
+
+  const handleTranslate = useCallback(async () => {
+    if (recognizedText) {
+      try {
+        setIsTranslating(true);
+        // 日本語から英語への翻訳
+        const translated = await translateText(recognizedText, 'ja', 'en');
+        setTranslatedText(translated);
+      } catch (err) {
+        console.error('翻訳エラー:', err);
+      } finally {
+        setIsTranslating(false);
+      }
+    }
+  }, [recognizedText]);
+
+  if (!hasPermission && Platform.OS !== 'web') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text>マイクの使用許可が必要です</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>簡易通訳アプリ</Text>
+      
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>認識された音声:</Text>
+        {isListening ? (
+          <Text style={styles.listeningText}>聞いています...</Text>
+        ) : (
+          <Text style={styles.inputText}>{recognizedText || '音声を認識していません'}</Text>
+        )}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <Button
+          title={isListening ? "停止" : "音声入力開始"}
+          onPress={isListening ? stopListening : () => startListening('ja-JP')}
+          color="#4285F4"
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <Button
+          title="翻訳"
+          onPress={handleTranslate}
+          disabled={!recognizedText || isTranslating}
+          color="#34A853"
+        />
+      </View>
+
+      <View style={styles.outputContainer}>
+        <Text style={styles.label}>翻訳結果:</Text>
+        {isTranslating ? (
+          <ActivityIndicator size="large" color="#4285F4" />
+        ) : (
+          <Text style={styles.outputText}>{translatedText || '翻訳結果がここに表示されます'}</Text>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#F5F5F5',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  inputContainer: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  outputContainer: {
+    padding: 15,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    marginTop: 10,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  inputText: {
+    fontSize: 18,
+    minHeight: 50,
+  },
+  outputText: {
+    fontSize: 18,
+    minHeight: 50,
+  },
+  buttonContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-around',
+    marginBottom: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  listeningText: {
+    fontSize: 18,
+    color: '#4285F4',
+    fontStyle: 'italic',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  errorText: {
+    color: 'red',
+    marginTop: 5,
   },
 });
